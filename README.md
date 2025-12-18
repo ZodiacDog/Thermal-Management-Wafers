@@ -516,7 +516,7 @@ The FEA simulator has been validated against:
    - Reliability prediction models
    - Non-destructive inspection
 
-**Recommendation:** File provisional patents before public disclosure
+*patents filed!!!!!!!!!!!*
 
 ---
 
@@ -632,11 +632,11 @@ A: Potentially for space applications (ITAR). Quantum may have EAR restrictions.
 For questions, collaboration inquiries, or licensing:
 
 **Technical Support:**
-- Email: engineering@thermalwafer.com (example)
-- GitHub: github.com/thermalwafer/design (example)
+- Email: maesonsfarms@gmail.com (be nice or ignored)
+- GitHub: github.com/ZodiacDog/Thermal-Management-Wafers
 
 **Business Development:**
-- Email: bd@thermalwafer.com (example)
+- Email: maesonsfarms@gmail.com (be nice or ignored)
 
 **Documentation:**
 - Full specifications in `/documentation/`
