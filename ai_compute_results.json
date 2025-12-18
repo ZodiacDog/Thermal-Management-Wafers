@@ -1,0 +1,14 @@
+{
+  "wafer_diameter_mm": 450.0,
+  "resolution": 150,
+  "ambient_temp_C": 25.0,
+  "cooling_type": "liquid",
+  "temperature_stats": {
+    "min": NaN,
+    "max": NaN,
+    "mean": NaN,
+    "std": NaN,
+    "delta_T": NaN
+  },
+  "heat_load_W": 0.00022325304804284997
+}
