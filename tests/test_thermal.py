@@ -40,11 +40,7 @@ def test_missing_boundary_raises():
 
 
 def test_paths_are_relative():
-    import inspect
-    import thermal_fea_simulator as mod
-    import fractal_pattern_generator as gen
-
-    sim_src = inspect.getsource(mod)
-    gen_src = inspect.getsource(gen)
-    assert "/home/claude" not in sim_src
-    assert "/home/claude" not in gen_src
+    root = Path(__file__).resolve().parents[1]
+    for name in ("thermal_fea_simulator.py", "fractal_pattern_generator.py"):
+        src = (root / name).read_text(encoding="utf-8")
+        assert "/home/claude" not in src
