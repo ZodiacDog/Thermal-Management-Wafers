@@ -87,7 +87,13 @@ thermal_wafer_project/
 
 ```bash
 # Python 3.8+ with required packages
-pip install numpy scipy matplotlib svgwrite ezdxf --break-system-packages
+pip install -r requirements.txt
+```
+
+Unit tests for the 2-D solver:
+
+```bash
+python -m pytest -q
 ```
 
 ### Generate CAD Patterns

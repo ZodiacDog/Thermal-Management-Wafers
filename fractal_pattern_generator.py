@@ -270,12 +270,11 @@ class FractalPatternGenerator:
         """Export pattern to DXF format for CAM"""
         try:
             import ezdxf
-        except ImportError:
-            print("ezdxf not installed. Installing...")
-            import subprocess
-            subprocess.run(['pip', 'install', 'ezdxf', '--break-system-packages'], 
-                         check=True)
-            import ezdxf
+        except ImportError as exc:
+            raise ImportError(
+                "ezdxf is required to export DXF. Install dependencies with: "
+                "pip install -r requirements.txt"
+            ) from exc
         
         doc = ezdxf.new('R2010')
         msp = doc.modelspace()
