@@ -171,21 +171,21 @@ Complete specifications covering:
 ### Space Solar Variant (300mm)
 - **Operating Range:** -150°C to +150°C
 - **Peak Power:** 50 W/cm²
-- **Temperature Uniformity:** ΔT <10°C
+- **Temperature uniformity (2-D model, 2026-11 measure):** ΔT 4.550°C at 250 W; earlier <10°C target is met only in this model
 - **Thermal Conductivity:** 1,200-1,500 W/m·K
 - **Cost Target:** $1,800-2,200/wafer (volume)
 
 ### AI Compute Variant (450mm)
 - **Operating Range:** -40°C to +125°C
 - **Peak Power:** 500 W/cm²
-- **Temperature Uniformity:** ΔT <5°C
+- **Temperature uniformity (2-D model, 2026-11 measure):** ΔT 86.780°C at 1000 W; the earlier <5°C claim is withdrawn
 - **Thermal Conductivity:** 1,800-2,200 W/m·K
 - **Cost Target:** $2,500-3,200/wafer (volume)
 
 ### Quantum Variant (200mm)
 - **Operating Range:** 4K to 300K
 - **Peak Power:** 10 W/cm²
-- **Temperature Uniformity:** ΔT <1mK
+- **Temperature uniformity (2-D model, 2026-11 measure):** ΔT 0.518°C at 15 W; the earlier <1 mK claim is withdrawn
 - **Thermal Conductivity:** 1,400-1,800 W/m·K
 - **Cost Target:** $3,500-5,000/wafer (volume)
 
