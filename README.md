@@ -7,7 +7,7 @@
 
 ## EXECUTIVE SUMMARY
 
-This repository contains complete production-ready designs for advanced thermal management wafers optimized for three critical applications:
+This repository contains design studies, pattern generators, and a **2-D finite-difference** thermal model for three wafer concepts:
 
 1. **Space Solar** - Exawatt-scale space-based solar power arrays
 2. **AI Compute** - Wafer-scale processors and high-density computing
@@ -19,15 +19,33 @@ This repository contains complete production-ready designs for advanced thermal 
 - **Embedded heat pipe arrays** - Effective thermal conductivity >15,000 W/m·K
 - **Diamond-copper composite layers** - 3-5x better than pure copper
 - **CVD diamond islands** - Strategic placement at hot spots
-- **Production-ready** - Complete CAD, simulation, test protocols, and supply chain
+- **Not a production sign-off** — CAD patterns and a simplified thermal model are included; they have not been qualified in a fab
 
-### Performance Highlights
+### Measured 2-D model results (2026-11-23, America/Chicago)
 
-| Variant | Operating Range | Peak Power Density | Temperature Uniformity | Thermal Conductivity |
-|---------|----------------|-------------------|----------------------|---------------------|
-| Space Solar | -150°C to 150°C | 50 W/cm² | ΔT <10°C | 1,200-1,500 W/m·K |
-| AI Compute | -40°C to 125°C | 500 W/cm² | ΔT <5°C | 1,800-2,200 W/m·K |
-| Quantum | 4K to 300K | 10 W/cm² | ΔT <1mK | 1,400-1,800 W/m·K |
+The previous table claimed production uniformity of ΔT <10°C / <5°C / <1 mK.
+The committed result files were all NaN, and the solver was singular. After
+fixing the system (on-wafer unknowns only, Dirichlet edge at ambient, 1.0–1.15 mm
+plate thickness, 120-point mesh) a fresh run produced **finite** numbers:
+
+| Variant | Applied heat (model input) | Ambient | Measured min–max | Measured ΔT |
+|---------|--------------------------:|--------:|------------------:|------------:|
+| Space Solar (300 mm, 1.10 mm thick) | 250 W (five 50 W spots) | 25°C | 25.000–29.550°C | **4.550°C** |
+| AI Compute (450 mm, 1.15 mm thick) | 1000 W (one 1000 W spot) | 25°C | 25.000–111.780°C | **86.780°C** |
+| Quantum (200 mm, 1.00 mm thick) | 15 W (three 5 W spots) | −269°C | −269.000–−268.482°C | **0.518°C** |
+
+Re-run with `python thermal_fea_simulator.py` from the repo root (requires
+numpy, scipy, matplotlib). This is a **2-D finite-difference** model with a
+fixed-temperature edge. It does not use the cooling-type label in the solve,
+it is not 3-D FEA, and it is not a fab qualification. The AI-compute ΔT of
+86.8°C and the quantum ΔT of 0.518°C **do not** meet the earlier <5°C and
+<1 mK marketing claims; those claims have been withdrawn. Space solar's
+4.55°C ΔT under 250 W is within the earlier <10°C figure, but only inside
+this simplified model.
+
+Material conductivities used in the code are still the library values
+(copper 400, composite 1200, CVD diamond 2000, heat-pipe channels 15,000 W/m·K).
+Those remain **inputs**, not measured wafer properties.
 
 ---
 
@@ -75,7 +93,7 @@ pip install numpy scipy matplotlib svgwrite ezdxf --break-system-packages
 ### Generate CAD Patterns
 
 ```bash
-cd cad_models
+# from the repository root (writes into cad_models/)
 python3 fractal_pattern_generator.py
 ```
 
@@ -88,7 +106,7 @@ This generates:
 ### Run Thermal Simulations
 
 ```bash
-cd simulations
+# from the repository root (reads cad_models/, writes simulations/)
 python3 thermal_fea_simulator.py
 ```
 
@@ -516,7 +534,7 @@ The FEA simulator has been validated against:
    - Reliability prediction models
    - Non-destructive inspection
 
-*patents filed!!!!!!!!!!!*
+Patent status is not established by this repository. Confirm any filing with the author; this tree is not a patent application.
 
 ---
 
@@ -632,11 +650,11 @@ A: Potentially for space applications (ITAR). Quantum may have EAR restrictions.
 For questions, collaboration inquiries, or licensing:
 
 **Technical Support:**
-- Email: maesonsfarms@gmail.com (be nice or ignored)
+- Email: ml.innovation.research.lab@gmail.com (be nice or ignored)
 - GitHub: github.com/ZodiacDog/Thermal-Management-Wafers
 
 **Business Development:**
-- Email: maesonsfarms@gmail.com (be nice or ignored)
+- Email: ml.innovation.research.lab@gmail.com (be nice or ignored)
 
 **Documentation:**
 - Full specifications in `/documentation/`
@@ -649,7 +667,7 @@ For questions, collaboration inquiries, or licensing:
 
 This design is provided for evaluation purposes. Commercial use requires licensing agreement.
 
-Patent applications pending.
+Patent status should be confirmed with the author. This repository is not a patent filing.
 
 © 2025 Thermal Management Systems. All rights reserved.
 

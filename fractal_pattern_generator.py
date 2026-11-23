@@ -423,7 +423,8 @@ class FractalPatternGenerator:
 
 def generate_all_variants():
     """Generate optimized patterns for all three variants"""
-    output_dir = Path('/home/claude/thermal_wafer_project/cad_models')
+    output_dir = Path(__file__).resolve().parent / 'cad_models'
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     variants = [
         (SPACE_VARIANT, 'voronoi'),
@@ -488,17 +489,6 @@ def generate_all_variants():
 
 
 if __name__ == '__main__':
-    # Install required packages
-    import subprocess
-    packages = ['svgwrite', 'ezdxf']
-    for pkg in packages:
-        try:
-            __import__(pkg)
-        except ImportError:
-            print(f"Installing {pkg}...")
-            subprocess.run(['pip', 'install', pkg, '--break-system-packages'], 
-                         check=True)
-    
     generate_all_variants()
     
     print("\n" + "="*60)

@@ -1,0 +1,16 @@
+{
+  "wafer_diameter_mm": 450.0,
+  "thickness_mm": 1.15,
+  "resolution": 120,
+  "model": "2D finite-difference (Dirichlet edge at ambient)",
+  "ambient_temp_C": 25.0,
+  "cooling_type": "liquid",
+  "temperature_stats": {
+    "min": 25.0,
+    "max": 111.7804892392243,
+    "mean": 33.017658913670736,
+    "std": 8.164840025783231,
+    "delta_T": 86.7804892392243
+  },
+  "heat_load_W": 1000.0
+}

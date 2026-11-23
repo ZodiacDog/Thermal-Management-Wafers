@@ -39,15 +39,21 @@ MATERIALS = {
 class ThermalFEA:
     """Finite Element Analysis for thermal distribution"""
     
-    def __init__(self, wafer_diameter_mm: float, resolution: int = 200):
+    def __init__(self, wafer_diameter_mm: float, resolution: int = 200,
+                 thickness_mm: float = 1.1):
         """
-        Initialize FEA mesh
-        
+        Initialize the 2-D finite-difference mesh.
+
         Args:
             wafer_diameter_mm: Wafer diameter in mm
-            resolution: Number of mesh points along diameter
+            resolution: Number of mesh points along the diameter
+            thickness_mm: Plate thickness used to convert areal heat load
+                (W/m^2) into a volumetric source (W/m^3). Documented stacks
+                are about 1.0-1.2 mm.
         """
         self.diameter_mm = wafer_diameter_mm
+        self.thickness_mm = thickness_mm
+        self.thickness_m = thickness_mm / 1000.0
         self.radius_mm = wafer_diameter_mm / 2.0
         self.resolution = resolution
         
@@ -63,6 +69,7 @@ class ThermalFEA:
         # Initialize fields
         self.temperature = np.zeros_like(self.X)
         self.heat_sources = np.zeros_like(self.X)
+        self.applied_power_W = 0.0
         self.conductivity_map = np.ones_like(self.X) * MATERIALS['copper'].conductivity
         
         # Channel network
@@ -139,7 +146,8 @@ class ThermalFEA:
     
     def add_heat_source(self, x_mm: float, y_mm: float, 
                        power_W: float, radius_mm: float = 5.0):
-        """Add a heat source to the simulation"""
+        """Add a heat source. power_W is total watts in a Gaussian spot."""
+        self.applied_power_W += float(power_W)
         for i in range(self.n):
             for j in range(self.n):
                 if not self.mask[j, i]:
@@ -175,101 +183,102 @@ class ThermalFEA:
         
         self.h = self.h_coefficients.get(cooling_type, 10.0)
     
+    def _require_boundary_conditions(self):
+        if not hasattr(self, "h") or not hasattr(self, "ambient_temp"):
+            raise RuntimeError(
+                "Call set_boundary_conditions() before assembling or solving."
+            )
+
+    def _active_index_map(self):
+        """Map on-wafer (j, i) cells to a compact 0..N-1 index."""
+        fwd = -np.ones((self.n, self.n), dtype=int)
+        active = []
+        for j in range(self.n):
+            for i in range(self.n):
+                if self.mask[j, i]:
+                    fwd[j, i] = len(active)
+                    active.append((i, j))
+        return fwd, active
+
+    def _is_edge_node(self, i: int, j: int) -> bool:
+        """True if the node is missing an on-wafer 4-neighbor (disk/mesh edge)."""
+        for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+            if not (0 <= ni < self.n and 0 <= nj < self.n and self.mask[nj, ni]):
+                return True
+        return False
+
     def build_stiffness_matrix(self) -> csr_matrix:
-        """Build global stiffness matrix for steady-state heat equation"""
+        """
+        Build a compact FDM system on on-wafer nodes.
+
+        Off-wafer nodes are excluded (they used to leave zero rows and make
+        the matrix singular). Edge nodes use a Dirichlet condition T = T_amb
+        so the system is well-posed. This is a 2-D finite-difference model,
+        not a 3-D finite-element analysis.
+        """
+        self._require_boundary_conditions()
         print("Building stiffness matrix...")
         start_time = time.time()
-        
-        # Sparse matrix for efficiency
-        K = lil_matrix((self.num_nodes, self.num_nodes))
-        
-        # Finite difference stencil
-        dx = self.dx / 1000.0  # Convert to meters
-        
-        for i in range(self.n):
-            for j in range(self.n):
-                if not self.mask[j, i]:
-                    continue
-                
-                idx = j * self.n + i
-                k = self.conductivity_map[j, i]
-                
-                # Central node
-                K[idx, idx] = -4 * k / (dx**2)
-                
-                # Neighbors (4-point stencil)
-                neighbors = [
-                    (i+1, j, 1), (i-1, j, 1),
-                    (i, j+1, 1), (i, j-1, 1)
-                ]
-                
-                for ni, nj, weight in neighbors:
-                    if (0 <= ni < self.n and 0 <= nj < self.n 
-                        and self.mask[nj, ni]):
-                        nidx = nj * self.n + ni
-                        K[idx, nidx] = k / (dx**2) * weight
-                
-                # Boundary conditions (Robin/convective)
-                if self._is_boundary(i, j):
-                    K[idx, idx] += -self.h / dx
-        
+
+        fwd, active = self._active_index_map()
+        self._fwd = fwd
+        self._active = active
+        nact = len(active)
+        K = lil_matrix((nact, nact))
+        dx = max(self.dx / 1000.0, 1e-12)
+
+        for i, j in active:
+            idx = fwd[j, i]
+            if self._is_edge_node(i, j):
+                K[idx, idx] = 1.0
+                continue
+            k = self.conductivity_map[j, i]
+            K[idx, idx] = -4.0 * k / (dx ** 2)
+            for ni, nj in ((i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)):
+                K[idx, fwd[nj, ni]] = k / (dx ** 2)
+
         print(f"Stiffness matrix built in {time.time() - start_time:.2f}s")
         return K.tocsr()
-    
-    def _is_boundary(self, i: int, j: int) -> bool:
-        """Check if node is on wafer boundary"""
-        mesh_x = -self.radius_mm + i * self.dx
-        mesh_y = -self.radius_mm + j * self.dx
-        dist = np.sqrt(mesh_x**2 + mesh_y**2)
-        return abs(dist - self.radius_mm) < 2 * self.dx
-    
+
     def build_force_vector(self) -> np.ndarray:
-        """Build force vector from heat sources and boundary conditions"""
-        F = np.zeros(self.num_nodes)
-        
-        dx = self.dx / 1000.0  # Convert to meters
-        
-        for i in range(self.n):
-            for j in range(self.n):
-                if not self.mask[j, i]:
-                    continue
-                
-                idx = j * self.n + i
-                
-                # Heat source term
-                F[idx] = -self.heat_sources[j, i] * dx**2
-                
-                # Boundary condition (ambient temperature)
-                if self._is_boundary(i, j):
-                    F[idx] += -self.h * self.ambient_temp / dx
-        
+        """Build the right-hand side on the compact on-wafer index set."""
+        self._require_boundary_conditions()
+        if not hasattr(self, "_fwd"):
+            self._fwd, self._active = self._active_index_map()
+        F = np.zeros(len(self._active))
+        # heat_sources is stored as W/mm^2; convert to W/m^2 for SI residual
+        for i, j in self._active:
+            idx = self._fwd[j, i]
+            if self._is_edge_node(i, j):
+                F[idx] = self.ambient_temp
+            else:
+                q_w_m2 = self.heat_sources[j, i] * 1e6  # stored as W/mm^2
+                F[idx] = -q_w_m2 / self.thickness_m
         return F
-    
+
     def solve_steady_state(self) -> np.ndarray:
-        """Solve steady-state heat equation"""
+        """Solve the steady-state heat equation on on-wafer nodes."""
+        self._require_boundary_conditions()
         print("Solving steady-state thermal distribution...")
         start_time = time.time()
-        
-        # Build system
+
         K = self.build_stiffness_matrix()
         F = self.build_force_vector()
-        
-        # Solve K*T = F
         T_vector = spsolve(K, F)
-        
-        # Reshape to 2D
-        self.temperature = T_vector.reshape((self.n, self.n))
-        
-        # Apply mask
-        self.temperature[~self.mask] = self.ambient_temp
-        
+
+        self.temperature = np.full_like(self.X, self.ambient_temp, dtype=float)
+        for (i, j), value in zip(self._active, T_vector):
+            self.temperature[j, i] = value
+
+        on = self.temperature[self.mask]
+        if not np.isfinite(on).all():
+            raise RuntimeError("Solver produced non-finite temperatures")
+
         print(f"Solution computed in {time.time() - start_time:.2f}s")
-        print(f"Temperature range: {self.temperature[self.mask].min():.1f}°C "
-              f"to {self.temperature[self.mask].max():.1f}°C")
-        print(f"Max ΔT: {self.temperature[self.mask].max() - self.temperature[self.mask].min():.1f}°C")
-        
+        print(f"Temperature range: {on.min():.3f}°C to {on.max():.3f}°C")
+        print(f"Max ΔT: {on.max() - on.min():.3f}°C")
         return self.temperature
-    
+
     def solve_transient(self, total_time_s: float, dt: float = 0.1) -> List[np.ndarray]:
         """
         Solve transient heat equation
@@ -391,7 +400,9 @@ class ThermalFEA:
         """Export simulation results to JSON"""
         results = {
             'wafer_diameter_mm': self.diameter_mm,
+            'thickness_mm': self.thickness_mm,
             'resolution': self.resolution,
+            'model': '2D finite-difference (Dirichlet edge at ambient)',
             'ambient_temp_C': self.ambient_temp,
             'cooling_type': self.cooling_type,
             'temperature_stats': {
@@ -402,7 +413,7 @@ class ThermalFEA:
                 'delta_T': float(self.temperature[self.mask].max() - 
                                self.temperature[self.mask].min())
             },
-            'heat_load_W': float(np.sum(self.heat_sources) * (self.dx/1000)**2),
+            'heat_load_W': float(self.applied_power_W),
         }
         
         with open(filename, 'w') as f:
@@ -411,15 +422,22 @@ class ThermalFEA:
         print(f"Results exported to {filename}")
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parent
+
+
 def run_all_simulations():
-    """Run thermal simulations for all three variants"""
-    output_dir = Path('/home/claude/thermal_wafer_project/simulations')
-    cad_dir = Path('/home/claude/thermal_wafer_project/cad_models')
+    """Run thermal simulations for all three variants."""
+    root = _repo_root()
+    output_dir = root / "simulations"
+    cad_dir = root / "cad_models"
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     variants = [
         {
             'name': 'space_solar',
             'diameter': 300.0,
+            'thickness_mm': 1.10,
             'pattern_file': cad_dir / 'space_solar_pattern.json',
             'ambient_temp': 25.0,
             'cooling': 'radiative',
@@ -429,6 +447,7 @@ def run_all_simulations():
         {
             'name': 'ai_compute',
             'diameter': 450.0,
+            'thickness_mm': 1.15,
             'pattern_file': cad_dir / 'ai_compute_pattern.json',
             'ambient_temp': 25.0,
             'cooling': 'liquid',
@@ -437,6 +456,7 @@ def run_all_simulations():
         {
             'name': 'quantum',
             'diameter': 200.0,
+            'thickness_mm': 1.00,
             'pattern_file': cad_dir / 'quantum_pattern.json',
             'ambient_temp': -269.0,  # 4K
             'cooling': 'convective',
@@ -450,7 +470,7 @@ def run_all_simulations():
         print(f"{'='*70}")
         
         # Create FEA instance
-        fea = ThermalFEA(variant['diameter'], resolution=150)
+        fea = ThermalFEA(variant['diameter'], resolution=120, thickness_mm=variant.get('thickness_mm', 1.1))
         
         # Load pattern
         if variant['pattern_file'].exists():
